@@ -20,6 +20,8 @@ import codecs
 import locale
 import logging
 import os
+from pathlib import Path
+from typing import List
 import platform
 import subprocess
 import sys
@@ -41,20 +43,20 @@ def main_is_frozen():
 
 
 if main_is_frozen():
-    app_dir = sys._MEIPASS  # os.path.dirname(sys.executable)
+    app_dir = Path(sys._MEIPASS)  # os.path.dirname(sys.executable)
 else:
-    app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    app_dir = Path(__file__).resolve().parent.parent
 
 if IS_WIN:
-    locale_dir = os.path.join(app_dir, 'share', 'locale')
+    locale_dir = app_dir / 'share' / 'locale'
 else:
-    locale_dir = os.path.join(sys.prefix, 'share', 'locale')
+    locale_dir = Path(sys.prefix) / 'share' / 'locale'
 
-image_dir = os.path.join(app_dir, 'images')
-frame_icon_dir = os.path.join(image_dir, 'rednotebook-icon')
-files_dir = os.path.join(app_dir, 'files')
+image_dir = app_dir / 'images'
+frame_icon_dir = image_dir / 'rednotebook-icon'
+files_dir = app_dir / 'files'
 
-user_home_dir = os.path.expanduser('~')
+user_home_dir = Path.home()
 
 
 class Filenames(dict):
@@ -64,8 +66,8 @@ class Filenames(dict):
     def __init__(self, config):
         for key, value in globals().items():
             # Exclude "get_main_dir()"
-            if key.lower().endswith('dir') and isinstance(value, str):
-                value = os.path.abspath(value)
+            if key.lower().endswith('dir') and isinstance(value, Path):
+                value = value.resolve()
                 self[key] = value
                 setattr(self, key, value)
 
@@ -83,28 +85,25 @@ class Filenames(dict):
         self.last_pic_dir = self.user_home_dir
         self.last_file_dir = self.user_home_dir
 
-        self.forbidden_dirs = [user_home_dir, self.journal_user_dir]
+        self.forbidden_dirs = (user_home_dir, self.journal_user_dir)
 
-    def get_user_dir(self, config):
-        custom = config.read('userDir')
+    def get_user_dir(self, config) -> Path:
+        custom = Path(config.read('userDir'))
 
         if custom:
             # If a custom user dir has been set,
-            # construct the absolute path (if not absolute already)
-            # and use it
-            if not os.path.isabs(custom):
-                custom = os.path.join(self.app_dir, custom)
-            user_dir = custom
+            # ensure it is absolute
+            user_dir = custom.resolve()
         else:
             if self.portable:
-                user_dir = os.path.join(self.app_dir, 'user')
+                user_dir = self.app_dir / 'user'
             else:
-                user_dir = os.path.join(self.user_home_dir, '.rednotebook')
+                user_dir = self.user_home_dir / '.rednotebook'
 
         return user_dir
 
-    def is_valid_journal_path(self, path):
-        return os.path.isdir(path) and os.path.abspath(path) not in self.forbidden_dirs
+    def is_valid_journal_path(self, path: Path) -> bool:
+        return path.is_dir() and path.is_absolute() not in self.forbidden_dirs
 
     def __getattribute__(self, attr):
         user_paths = {
@@ -116,18 +115,20 @@ class Filenames(dict):
         }
 
         if attr in user_paths:
-            return os.path.join(self.journal_user_dir, user_paths.get(attr))
+            retval = self.journal_user_dir / user_paths.get(attr)
+        else:
+            retval = dict.__getattribute__(self, attr)
 
-        return dict.__getattribute__(self, attr)
+        return retval
 
 
-def read_file(filename):
+def read_file(filename: Path):
     """Try to read a given file.
 
     Return empty string if an error is encountered.
     """
     try:
-        with codecs.open(filename, 'rb', encoding='utf-8', errors='replace') as file:
+        with codecs.open(str(filename), 'rb', encoding='utf-8', errors='replace') as file:
             data = file.read()
             return data
     except ValueError as err:
@@ -138,26 +139,26 @@ def read_file(filename):
 
 
 def write_file(filename, content):
-    assert os.path.isabs(filename)
+    assert filename.is_absolute()
     try:
         with codecs.open(filename, 'wb', errors='replace', encoding='utf-8') as file:
             file.write(content)
     except OSError as e:
-        logging.error('Error while writing to "{}": {}'.format(filename, e))
+        logging.error(f'Error while writing to "{filename!s}": {e}')
 
 
-def make_directory(dir):
-    if not os.path.isdir(dir):
-        os.makedirs(dir)
+def make_directory(dir: Path):
+    if not dir.is_dir():
+        dir.mkdir(parents=True)
 
 
-def make_directories(dirs):
+def make_directories(dirs: List[Path]):
     for dir in dirs:
         make_directory(dir)
 
 
-def make_file(file, content=''):
-    if not os.path.isfile(file):
+def make_file(file: Path, content=''):
+    if not file.is_file():
         write_file(file, content)
 
 
@@ -166,38 +167,31 @@ def make_files(file_content_pairs):
         make_file(file, content)
 
 
-def make_file_with_dir(file, content):
-    dir = os.path.dirname(file)
-    make_directory(dir)
+def make_file_with_dir(file: Path, content):
+    make_directory(file.parent)
     make_file(file, content)
 
 
-def get_relative_path(from_dir, to_dir):
+def get_relative_path(from_dir: Path, to_dir: Path):
     '''
     Try getting the relative path from from_dir to to_dir
     '''
     # If the data is saved on two different windows partitions,
     # return absolute path to to_dir.
-    # drive1 and drive2 are always empty strings on Unix.
-    drive1, _ = os.path.splitdrive(from_dir)
-    drive2, _ = os.path.splitdrive(to_dir)
-    if drive1.upper() != drive2.upper():
+    if from_dir.drive.upper() != to_dir.drive.upper():
         return to_dir
 
-    return os.path.relpath(to_dir, from_dir)
+    return from_dir.relative_to(to_dir)
 
 
-def get_journal_title(dir):
-    '''
-    returns the last dirname in path
-    '''
-    dir = os.path.abspath(dir)
-    # Remove double slashes and last slash
-    dir = os.path.normpath(dir)
+def get_journal_title(dir: Path) -> str:
+    """Get Journal title
+    returns the directory name or '/' if dir is '/'
+    """
 
-    dirname, basename = os.path.split(dir)
     # Return "/" if journal is located at /
-    return basename or dirname
+    title = '/' if not dir.name else dir.name
+    return title
 
 
 def get_platform_info():

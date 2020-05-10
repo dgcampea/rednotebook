@@ -18,7 +18,7 @@
 
 import codecs
 import logging
-import os
+from pathlib import Path
 import re
 import shutil
 import stat
@@ -45,23 +45,23 @@ def format_year_and_month(year, month):
     return '%04d-%02d' % (year, month)
 
 
-def get_journal_files(data_dir):
+def get_journal_files(data_dir: Path):
     # Format: 2010-05.txt
     date_exp = re.compile(r'(\d{4})-(\d{2})\.txt$')
 
-    for file in sorted(os.listdir(data_dir)):
-        match = date_exp.match(file)
+    for file in data_dir.glob('*.txt'):
+        match = date_exp.match(file.name)
         if match:
             year = int(match.group(1))
             month = int(match.group(2))
             assert month in range(1, 12 + 1)
-            path = os.path.join(data_dir, file)
+            path = data_dir / file
             yield (path, year, month)
         else:
             logging.debug('%s is not a valid month filename' % file)
 
 
-def _load_month_from_disk(path, year_number, month_number):
+def _load_month_from_disk(path: Path, year_number, month_number):
     '''
     Load the month file at path and return a month object
 
@@ -72,7 +72,7 @@ def _load_month_from_disk(path, year_number, month_number):
         with codecs.open(path, 'rb', encoding='utf-8') as month_file:
             logging.debug('Loading file "%s"' % path)
             month_contents = yaml.load(month_file, Loader=Loader)
-            month = Month(year_number, month_number, month_contents, os.path.getmtime(path))
+            month = Month(year_number, month_number, month_contents, path.stat().st_mtime)
             return month
     except yaml.YAMLError as exc:
         logging.error('Error in file {}:\n{}'.format(path, exc))
@@ -86,7 +86,7 @@ def _load_month_from_disk(path, year_number, month_number):
     sys.exit(1)
 
 
-def load_all_months_from_disk(data_dir):
+def load_all_months_from_disk(data_dir: Path):
     '''
     Load all months and return a directory mapping year-month values
     to month objects.
@@ -116,24 +116,24 @@ def _save_month_to_disk(month, journal_dir):
         if not day.empty:
             content[day_number] = day.content
 
-    def get_filename(infix):
+    def get_filename(infix: str) -> Path:
         year_and_month = format_year_and_month(month.year_number, month.month_number)
-        return os.path.join(journal_dir, '{}{}.txt'.format(year_and_month, infix))
+        return journal_dir / f'{year_and_month}{infix}.txt'
 
     old = get_filename('.old')
     new = get_filename('.new')
     filename = get_filename('')
 
     # Do not save empty month files.
-    if not content and not os.path.exists(filename):
+    if not content and not filename.exists():
         return False
 
     with codecs.open(new, 'wb', encoding='utf-8') as f:
         # Write readable unicode and no Python directives.
         yaml.dump(content, f, Dumper=Dumper, allow_unicode=True)
 
-    if os.path.exists(filename):
-        mtime = os.path.getmtime(filename)
+    if filename.exists():
+        mtime = filename.stat().st_mtime
         if mtime != month.mtime:
             conflict = get_filename('.CONFLICT_BACKUP' + str(mtime))
             logging.debug('Last edit time of %s conflicts with edit time at file load\n'
@@ -141,17 +141,17 @@ def _save_month_to_disk(month, journal_dir):
             shutil.copy2(filename, conflict)
         shutil.copy2(filename, old)
     shutil.move(new, filename)
-    if os.path.exists(old):
-        os.remove(old)
+    if old.exists():
+        old.unlink()
 
     try:
         # Make file readable and writable only by the owner.
-        os.chmod(filename, stat.S_IRUSR | stat.S_IWUSR)
+        filename.chmod(stat.S_IRUSR | stat.S_IWUSR)
     except OSError:
         pass
 
     month.edited = False
-    month.mtime = os.path.getmtime(filename)
+    month.mtime = filename.stat().st_mtime
     logging.info('Wrote file %s' % filename)
     return True
 

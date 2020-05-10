@@ -16,7 +16,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 # -----------------------------------------------------------------------
 
-import os
+from pathlib import Path
 import logging
 
 from rednotebook.util import filesystem
@@ -67,16 +67,16 @@ class Config(dict):
     def __init__(self, config_file):
         dict.__init__(self)
 
-        self.filename = config_file
+        self.configfile = config_file
 
-        self.update(self._read_file(self.filename))
+        self.update(self._read_file(self.configfile))
         self.save_state()
 
     def save_state(self):
         ''' Save a copy of the dir to check for changes later '''
         self.old_config = self.copy()
 
-    def _read_file(self, filename):
+    def _read_file(self, filename: Path):
         content = filesystem.read_file(filename)
 
         # Delete comments and whitespace.
@@ -92,6 +92,10 @@ class Config(dict):
             # Skip obsolete keys to prevent rewriting them to disk.
             if key in self.obsolete_keys:
                 continue
+            elif key.lower().endswith('dir'):
+                value = Path(value)
+                dictionary[key] = value
+                break
 
             try:
                 value = int(value)
@@ -147,11 +151,11 @@ class Config(dict):
                 lines.append('{}={}'.format(key, value))
 
         try:
-            filesystem.make_directory(os.path.dirname(self.filename))
-            filesystem.write_file(self.filename, '\n'.join(lines))
+            filesystem.make_directory(self.configfile.parent)
+            filesystem.write_file(self.configfile, '\n'.join(lines))
         except OSError:
             logging.error('Configuration could not be saved. Please check '
                           'your permissions')
         else:
-            logging.info('Configuration has been saved to %s' % self.filename)
+            logging.info('Configuration has been saved to %s' % str(self.configfile))
             self.save_state()

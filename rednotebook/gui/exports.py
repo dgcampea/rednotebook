@@ -18,7 +18,7 @@
 
 import datetime
 import logging
-import os
+from pathlib import Path
 
 from gi.repository import GObject
 from gi.repository import Gtk
@@ -483,9 +483,7 @@ class Exporter:
 
     @property
     def DEFAULTPATH(self):
-        return os.path.join(
-            os.path.expanduser('~'),
-            'RedNotebook-Export_{}.{}'.format(datetime.date.today(), self.EXTENSION))
+        return Path.home() / f'RedNotebook-Export_{datetime.date.today()}.{self.EXTENSION}'
 
 
 class PlainTextExporter(Exporter):

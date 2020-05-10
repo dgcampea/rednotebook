@@ -16,7 +16,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 # -----------------------------------------------------------------------
 
-import os
+from pathlib import Path
 import logging
 import platform
 
@@ -74,9 +74,8 @@ class TickOption(Option):
 
 class AutostartOption(TickOption):
     def __init__(self):
-        self.autostart_file = os.path.expanduser(
-            '~/.config/autostart/rednotebook.desktop')
-        autostart_file_exists = os.path.exists(self.autostart_file)
+        self.autostart_file = Path.home() / '.config' / 'autostart' / 'rednotebook.desktop'
+        autostart_file_exists = self.autostart_file.exists()
         TickOption.__init__(
             self, _('Load RedNotebook at startup'), None, value=autostart_file_exists)
 
@@ -92,8 +91,8 @@ class AutostartOption(TickOption):
             filesystem.make_file_with_dir(self.autostart_file, info.desktop_file)
         else:
             # Remove autostart file
-            if os.path.exists(self.autostart_file):
-                os.remove(self.autostart_file)
+            if self.autostart_file.exists():
+                self.autostart_file.unlink()
 
 
 class TextOption(Option):
@@ -269,7 +268,7 @@ class OptionsManager:
 
         self.options = []
 
-        if platform.system() == 'Linux' and os.path.exists('/usr/bin/rednotebook'):
+        if platform.system() == 'Linux' and Path('/usr/bin/rednotebook').exists():
             logging.debug('Running on Linux. Is installed. Adding autostart option')
             self.options.insert(0, AutostartOption())
 

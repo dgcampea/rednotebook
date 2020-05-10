@@ -18,7 +18,7 @@
 
 import datetime
 import logging
-import os
+from pathlib import Path
 import webbrowser
 
 from gi.repository import GObject
@@ -273,19 +273,17 @@ class PathChooserPage(AssistantPage):
             filter.add_pattern('*.' + extension)
             self.chooser.add_filter(filter)
 
-        if self.last_path and os.path.exists(self.last_path):
+        if self.last_path and self.last_path.exists():
             path = self.last_path
 
-        if os.path.isdir(path):
-            self.chooser.set_current_folder(path)
+        if path.is_dir():
+            self.chooser.set_current_folder(str(path))
         else:
-            dirname, basename = os.path.split(path)
-            filename, _ = os.path.splitext(basename)
-            self.chooser.set_current_folder(dirname)
-            self.chooser.set_current_name(filename + '.' + extension)
+            self.chooser.set_current_folder(str(path.parent))
+            self.chooser.set_current_name(path.name)
 
     def get_selected_path(self):
-        self.last_path = self.chooser.get_filename()
+        self.last_path = Path(self.chooser.get_filename())
         return self.last_path
 
     def on_path_changed(self, widget):
