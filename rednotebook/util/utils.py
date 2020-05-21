@@ -19,7 +19,7 @@
 from distutils.version import StrictVersion
 import http.client
 import logging
-import os.path
+from pathlib import Path
 import re
 import signal
 import threading
@@ -171,11 +171,11 @@ def check_new_version(journal, current_version, startup):
     thread.start()
 
 
-def show_html_in_browser(html, filename):
+def show_html_in_browser(html, filename: Path):
     filesystem.write_file(filename, html)
 
-    html_file = os.path.abspath(filename)
-    html_file = "file://" + html_file
+    html_file = filename.resolve()
+    html_file = "file://" + str(html_file)
     webbrowser.open(html_file)
 
 

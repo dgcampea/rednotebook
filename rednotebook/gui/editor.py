@@ -17,7 +17,7 @@
 # -----------------------------------------------------------------------
 
 import logging
-import os
+from pathlib import Path
 import urllib.request
 
 from gi.repository import GObject, Gtk, Pango
@@ -36,7 +36,9 @@ DEFAULT_FONT = Gtk.Settings.get_default().get_property("gtk-font-name")
 
 
 class Editor(GObject.GObject):
-    __gsignals__ = {"can-undo-redo-changed": (GObject.SIGNAL_RUN_FIRST, None, ())}
+    __gsignals__ = {
+        "can-undo-redo-changed": (GObject.SIGNAL_RUN_FIRST, None, ()),
+    }
 
     def __init__(self, day_text_view):
         super().__init__()
@@ -301,23 +303,25 @@ class Editor(GObject.GObject):
 
         iter = self.day_text_view.get_iter_at_location(x, y)[1]
 
-        def is_pic(uri):
-            _, ext = os.path.splitext(uri)
-            return ext.lower().strip(".") in "png jpeg jpg gif eps bmp svg".split()
+        def is_pic(file_path: Path):
+            exts = (".png", ".jpeg", ".jpg", ".gif", ".eps", ".bmp", ".svg")
+            return Path(file_path).suffix.lower() in exts
 
+        # Its either an array of URI or text
+        # we're assuming the URI has file:// scheme !
         uris = selection.get_text().split()
         logging.debug("Text: {}".format(selection.get_text()))
         logging.debug("URIs: {}".format(uris))
         for uri in uris:
             uri = uri.strip()
-            uri = urllib.request.url2pathname(uri)
-            dirs, filename = os.path.split(uri)
-            uri_without_ext, ext = os.path.splitext(uri)
-            if is_pic(uri):
-                self.insert('[""{}""{}]\n'.format(uri_without_ext, ext), iter)
+            uri = urllib.parse.urlparse(uri)
+            file_path = Path(urllib.parse.unquote(uri.path))
+            name, ext = file_path.resolve(), file_path.suffix
+            if is_pic(file_path):
+                self.insert(f'[""{name!s}""{ext}]\n', iter)
             else:
-                # It is always safer to add the "file://" protocol and the ""s
-                self.insert('[{} ""{}""]\n'.format(filename, uri), iter)
+                # Preserve the scheme ("file://", etc.)
+                self.insert(f'[{file_path.name} ""{file_path.as_uri()}""]\n', iter)
 
         drag_context.finish(True, False, timestamp)
         # No further processing

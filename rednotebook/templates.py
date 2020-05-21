@@ -17,6 +17,8 @@
 # -----------------------------------------------------------------------
 
 import os
+from pathlib import Path
+from typing import List
 
 from gi.repository import Gtk
 
@@ -351,8 +353,8 @@ class TemplateManager:
     def _get_weekday_number(self):
         return self.main_window.journal.date.isoweekday()
 
-    def get_path(self, title):
-        return os.path.join(self.dirs.template_dir, title + ".txt")
+    def get_path(self, title) -> Path:
+        return self.dirs.template_dir / (title + ".txt")
 
     def get_text(self, title):
         text = filesystem.read_file(self.get_path(title))
@@ -362,9 +364,8 @@ class TemplateManager:
             text = _("This template file contains no text or has unreadable content.")
         return text
 
-    def get_available_template_files(self):
-        path = self.dirs.template_dir
-        return [os.path.join(path, f) for f in os.listdir(path) if f.endswith(".txt")]
+    def get_available_template_files(self) -> List[Path]:
+        return list(self.dirs.template_dir.glob("**/*.txt"))
 
     def _escape_template_name(self, name):
         """Remove special xml chars for GUI display."""
@@ -381,9 +382,7 @@ class TemplateManager:
 
         titles = []
         for file in files:
-            root, ext = os.path.splitext(file)
-            title = os.path.basename(root)
-            titles.append(title)
+            titles.append(file.stem)
 
         actions_xml = "".join(
             '<menuitem action="Edit%s"/>' % self._escape_template_name(title)
@@ -470,7 +469,7 @@ class TemplateManager:
                 )
             )
 
-        help_text %= self.dirs.template_dir
+        help_text %= str(self.dirs.template_dir)
 
         files.append((self.get_path("Help"), help_text))
 

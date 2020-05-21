@@ -17,7 +17,7 @@
 # -----------------------------------------------------------------------
 
 import functools
-import os
+from pathlib import Path
 
 from gi.repository import Gtk
 
@@ -65,8 +65,9 @@ MENUBAR_XML = (
 
 def get_image(name):
     image = Gtk.Image()
-    file_name = os.path.join(filesystem.image_dir, name)
-    image.set_from_file(file_name)
+    # TODO: change filesystem.image to Path object
+    file_name = Path(filesystem.image_dir) / name
+    image.set_from_file(str(file_name))
     return image
 
 
@@ -236,7 +237,7 @@ class InsertMenu:
     def on_insert_pic(self, sel_text):
         dirs = self.main_window.journal.dirs
         picture_chooser = self.main_window.builder.get_object("picture_chooser")
-        picture_chooser.set_current_folder(dirs.last_pic_dir)
+        picture_chooser.set_current_folder(str(dirs.last_pic_dir))
 
         # if no text is selected, we can support inserting multiple images
         picture_chooser.set_select_multiple(not sel_text)
@@ -289,19 +290,20 @@ class InsertMenu:
                     return
                 width_text = "?%d" % width
 
-            if sel_text:
-                sel_text += " "
-
             # iterate through all selected images
             lines = []
             for filename in picture_chooser.get_filenames():
-                base, ext = os.path.splitext(filename)
+                file = Path(filename)
+                base, name, ext = str(file.parent), file.stem, file.suffix
 
                 # On windows firefox accepts absolute filenames only
                 # with the file:// prefix
-                base = urls.get_local_url(base)
+                base = urls.get_local_url(str(base))
 
-                lines.append('[{}""{}""{}{}]'.format(sel_text, base, ext, width_text))
+                if sel_text:
+                    lines.append(f'[{sel_text} ""{base}/{name!s}""{ext!s}{width_text}]')
+                else:
+                    lines.append(f'[""{base}/{name!s}""{ext!s}{width_text}]')
 
             return "\n".join(lines)
 
@@ -322,7 +324,7 @@ class InsertMenu:
             filename = file_chooser.get_filename()
             filename = urls.get_local_url(filename)
             sel_text = self.main_window.day_text_field.get_selected_text()
-            _, tail = os.path.split(filename)
+            tail = Path(filename).name
             # It is always safer to add the "file://" protocol and the ""s
             return '[{} ""{}""]'.format(sel_text or tail, filename)
 

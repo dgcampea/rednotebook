@@ -19,7 +19,7 @@
 from collections import OrderedDict
 import datetime
 import logging
-import os
+from pathlib import Path
 from unittest import mock
 import urllib.parse
 
@@ -55,7 +55,7 @@ class MainWindow:
 
         # Load Glade file.
         # TODO: Remove workaround for Windows once it is no longer needed.
-        self.gladefile = os.path.join(filesystem.files_dir, "main_window.glade")
+        self.gladefile = Path(filesystem.files_dir) / "main_window.glade"
         self.builder = Gtk.Builder()
         # Register GtkSourceView so builder can use it when loading the file
         # https://stackoverflow.com/q/10524196/434217
@@ -71,13 +71,13 @@ class MainWindow:
             self.builder = Gtk.Builder.new_from_string(xml_text, len(xml_text))
         else:
             self.builder.set_translation_domain("rednotebook")
-            self.builder.add_from_file(self.gladefile)
+            self.builder.add_from_file(str(self.gladefile))
 
         # Get the main window and set the icon
         self.main_frame = self.builder.get_object("main_frame")
         self.main_frame.set_title("RedNotebook")
         icon = GdkPixbuf.Pixbuf.new_from_file(
-            os.path.join(filesystem.frame_icon_dir, "rn-128.png")
+            str(filesystem.frame_icon_dir / "rn-128.png")
         )
         self.main_frame.set_icon(icon)
 
@@ -291,8 +291,8 @@ class MainWindow:
         logging.debug("Tray icon visible: %s" % visible)
 
         self.tray_icon.set_tooltip_text("RedNotebook")
-        icon_file = os.path.join(self.journal.dirs.frame_icon_dir, "rn-32.png")
-        self.tray_icon.set_from_file(icon_file)
+        icon_file = self.journal.dirs.frame_icon_dir / "rn-32.png"
+        self.tray_icon.set_from_file(str(icon_file))
 
         self.tray_icon.connect("activate", self.on_tray_icon_activated)
         self.tray_icon.connect("popup-menu", self.on_tray_popup_menu)
@@ -461,9 +461,7 @@ class MainWindow:
                 headers=[date_string + " - RedNotebook", "", ""],
                 options={"toc": 0},
             )
-            utils.show_html_in_browser(
-                html, os.path.join(self.journal.dirs.temp_dir, "day.html")
-            )
+            utils.show_html_in_browser(html, self.journal.dirs.temp_dir / "day.html")
 
     def on_browser_clicked(self, webview, event):
         if event.type == Gdk.EventType._2BUTTON_PRESS:
@@ -573,7 +571,7 @@ class MainWindow:
         label = self.builder.get_object("dir_chooser_label")
 
         label.set_markup("<b>" + message + "</b>")
-        dir_chooser.set_current_folder(os.path.dirname(self.journal.dirs.data_dir))
+        dir_chooser.set_current_folder(str(self.journal.dirs.data_dir.parent))
 
         response = dir_chooser.run()
         # Retrieve the dir now, because it will be cleared by the call to hide().
@@ -764,8 +762,8 @@ class DayEditor(editor.Editor):
             # Load our own copy of t2t syntax highlighting
             lm = GtkSource.LanguageManager.get_default()
             search_path = lm.get_search_path()
-            if filesystem.files_dir not in search_path:
-                search_path.insert(0, filesystem.files_dir)
+            if str(filesystem.files_dir) not in search_path:
+                search_path.insert(0, str(filesystem.files_dir))
                 lm.set_search_path(search_path)
             self._t2t_highlighting = lm.get_language("t2t")
         return self._t2t_highlighting
@@ -774,8 +772,8 @@ class DayEditor(editor.Editor):
         if self._style_scheme is None:
             # Load our customised variant of the Tango scheme
             sm = GtkSource.StyleSchemeManager.get_default()
-            if filesystem.files_dir not in sm.get_search_path():
-                sm.prepend_search_path(filesystem.files_dir)
+            if str(filesystem.files_dir) not in sm.get_search_path():
+                sm.prepend_search_path(str(filesystem.files_dir))
             self._style_scheme = sm.get_scheme("rednotebook")
         return self._style_scheme
 

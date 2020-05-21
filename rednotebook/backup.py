@@ -18,7 +18,7 @@
 
 import datetime
 import logging
-import os
+from pathlib import Path
 import zipfile
 
 from gi.repository import Gtk
@@ -29,19 +29,6 @@ MAX_BACKUP_AGE = 7
 BACKUP_NOW = 100
 ASK_NEXT_TIME = 200
 NEVER_ASK_AGAIN = 300
-
-
-def write_archive(archive_file_name, files, base_dir="", arc_base_dir=""):
-    """
-    Use base_dir for relative filenames, in case you don't
-    want your archive to contain '/home/...'
-    """
-    archive = zipfile.ZipFile(
-        archive_file_name, mode="w", compression=zipfile.ZIP_DEFLATED
-    )
-    for file in files:
-        archive.write(file, os.path.join(arc_base_dir, file[len(base_dir) :]))
-    archive.close()
 
 
 class Archiver:
@@ -87,6 +74,14 @@ class Archiver:
             )
 
     def backup(self):
+        def write_archive(archive_file_name, files):
+            archive = zipfile.ZipFile(
+                archive_file_name, mode="w", compression=zipfile.ZIP_DEFLATED
+            )
+            for file in files:
+                archive.write(file, file.name)
+            archive.close()
+
         backup_file = self._get_backup_file()
         # Abort if user did not select a path.
         if not backup_file:
@@ -95,18 +90,18 @@ class Archiver:
         self.journal.save_to_disk()
         data_dir = self.journal.dirs.data_dir
         archive_files = []
-        for root, _, files in os.walk(data_dir):
-            for file in files:
-                if not file.endswith("~") and "RedNotebook-Backup" not in file:
-                    archive_files.append(os.path.join(root, file))
+        for file in data_dir.rglob("*"):
+            filename = str(file)
+            if not filename.endswith("~") and "RedNotebook-Backup" not in filename:
+                archive_files.append(file)
 
-        write_archive(backup_file, archive_files, data_dir)
+        write_archive(backup_file, archive_files)
 
         logging.info("The content has been backed up at %s" % backup_file)
         self.journal.config["lastBackupDate"] = datetime.datetime.now().strftime(
             DATE_FORMAT
         )
-        self.journal.config["lastBackupDir"] = os.path.dirname(backup_file)
+        self.journal.config["lastBackupDir"] = str(backup_file.parent)
 
     def _last_backup_age(self):
         now = datetime.datetime.now()
@@ -122,7 +117,7 @@ class Archiver:
         logging.info("Last backup was made %d days ago" % last_backup_age)
         return last_backup_age
 
-    def _get_backup_file(self):
+    def _get_backup_file(self) -> Path:
         if self.journal.title == "data":
             name = ""
         else:
@@ -131,13 +126,11 @@ class Archiver:
         proposed_filename = "RedNotebook-Backup{}-{}.zip".format(
             name, datetime.date.today()
         )
-        proposed_directory = self.journal.config.read(
-            "lastBackupDir", os.path.expanduser("~")
-        )
+        proposed_directory = self.journal.config.read("lastBackupDir", Path.home())
 
         backup_dialog = self.journal.frame.builder.get_object("backup_dialog")
         backup_dialog.set_transient_for(self.journal.frame.main_frame)
-        backup_dialog.set_current_folder(proposed_directory)
+        backup_dialog.set_current_folder(str(proposed_directory))
         backup_dialog.set_current_name(proposed_filename)
 
         filter = Gtk.FileFilter()
@@ -149,5 +142,5 @@ class Archiver:
         backup_dialog.hide()
 
         if response == Gtk.ResponseType.OK:
-            path = backup_dialog.get_filename()
+            path = Path(backup_dialog.get_filename())
             return path

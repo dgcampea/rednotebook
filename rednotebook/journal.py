@@ -22,6 +22,7 @@ import itertools
 import locale
 import logging
 import os
+from pathlib import Path
 import sys
 import time
 
@@ -45,13 +46,13 @@ gi.require_version("Gtk", "3.0")
 gi.require_version("GtkSource", "3.0")
 
 if hasattr(sys, "frozen"):
-    base_dir = sys._MEIPASS
+    base_dir = Path(sys._MEIPASS)
 else:
-    app_dir = os.path.dirname(os.path.abspath(__file__))
-    base_dir = os.path.dirname(app_dir)
+    app_dir = Path(__file__).resolve().parent
+    base_dir = app_dir.parent
 
-print("Adding {} to sys.path".format(base_dir))
-sys.path.insert(0, base_dir)
+print(f"Adding {base_dir!s} to sys.path")
+sys.path.insert(0, str(base_dir))
 
 from rednotebook.util import filesystem
 
@@ -140,7 +141,7 @@ def setup_logging(log_file):
     logging.info('Writing log to file "%s"' % log_file)
 
 
-default_config_file = os.path.join(filesystem.app_dir, "files", "default.cfg")
+default_config_file = filesystem.app_dir / "files" / "default.cfg"
 default_config = configuration.Config(default_config_file)
 
 dirs = filesystem.Filenames(default_config)
@@ -237,25 +238,22 @@ class Journal:
         not present
         """
         if not args.journal:
-            data_dir = self.config.read("dataDir", self.dirs.data_dir)
-            if not os.path.isabs(data_dir):
-                data_dir = os.path.join(self.dirs.app_dir, data_dir)
-                data_dir = os.path.normpath(data_dir)
+            data_dir = self.config.read("dataDir", self.dirs.data_dir).resolve()
             return data_dir
 
         # path_arg can be e.g. data (under .rednotebook), data (elsewhere),
         # or an absolute path /home/username/myjournal
         # Try to find the journal under the standard location or at the given
         # absolute or relative location
-        path_arg = args.journal
+        path_arg = Path(args.journal)
 
-        logging.debug('Trying to find journal "%s"' % path_arg)
+        logging.debug(f'Trying to find journal "{path_arg!s}"')
 
-        paths_to_check = [path_arg, os.path.join(self.dirs.journal_user_dir, path_arg)]
+        paths_to_check = [path_arg, self.dirs.journal_user_dir / path_arg]
 
         for path in paths_to_check:
-            if os.path.exists(path):
-                if os.path.isdir(path):
+            if path.exists():
+                if path.is_dir():
                     return path
                 else:
                     logging.warning(
@@ -263,8 +261,8 @@ class Journal:
                     )
 
         logging.error(
-            'The path "%s" is not a valid journal directory. '
-            'Execute "rednotebook -h" for instructions' % path_arg
+            f'The path "{path_arg!s}" is not a valid journal directory. '
+            'Execute "rednotebook -h" for instructions'
         )
         sys.exit(2)
 
@@ -352,10 +350,10 @@ class Journal:
         # tell gobject to keep saving the content in regular intervals
         return True
 
-    def open_journal(self, data_dir):
-        if not os.path.exists(data_dir):
+    def open_journal(self, data_dir: Path):
+        if not data_dir.exists():
             logging.warning(
-                "The dir %s does not exist. Select a different dir." % data_dir
+                f"The dir {data_dir!s} does not exist. Select a different dir."
             )
             return
 

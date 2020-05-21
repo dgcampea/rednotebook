@@ -16,6 +16,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 # -----------------------------------------------------------------------
 import os
+from pathlib import Path
 import webbrowser
 
 from gi.repository import GdkPixbuf, Gtk
@@ -212,7 +213,7 @@ class MainMenuBar:
                     "F7",
                     _("Underline misspelled words"),
                     self.on_checkspelling_menuitem_toggled,
-                )
+                ),
             ]
         )
         actiongroup.add_actions(
@@ -273,7 +274,7 @@ class MainMenuBar:
     def get_menu_bar(self):
         return self.uimanager.get_widget("/MainMenuBar")
 
-    def check_journal_dir(self, action, new_dir):
+    def check_journal_dir(self, action, new_dir: Path):
         if not new_dir:
             return False
         title = _("Wrong directory")
@@ -292,7 +293,7 @@ class MainMenuBar:
             return False
         elif action in ["open"] and not list(storage.get_journal_files(new_dir)):
             self.journal.show_message(
-                _("This directory contains no journal files:") + " " + new_dir,
+                _("This directory contains no journal files:") + " " + str(new_dir),
                 title=title,
                 error=True,
             )
@@ -301,6 +302,7 @@ class MainMenuBar:
 
     def select_journal(self, action, title, message):
         new_dir = self.main_window.get_new_journal_dir(title, message)
+        new_dir = Path(new_dir) if new_dir else None
         if not self.check_journal_dir(action, new_dir):
             return
 
@@ -391,15 +393,15 @@ class MainMenuBar:
         self.journal.stats.show_dialog(self.main_window.stats_dialog)
 
     def on_help_menu_item_activate(self, widget):
-        temp_dir = self.journal.dirs.temp_dir
-        filesystem.write_file(os.path.join(temp_dir, "source.txt"), help_text)
+        temp_dir = self.journal.dirs.temp_dir.resolve()
+        filesystem.write_file(temp_dir / "source.txt", help_text)
         html = self.journal.convert(
             help_text,
             "xhtml",
             headers=[_("RedNotebook Documentation"), info.version, ""],
             options={"toc": 1},
         )
-        utils.show_html_in_browser(html, os.path.join(temp_dir, "help.html"))
+        utils.show_html_in_browser(html, temp_dir / "help.html")
 
     def on_online_help(self, widget):
         webbrowser.open(info.answers_url)
@@ -423,8 +425,8 @@ class MainMenuBar:
         self.info_dialog.set_authors(info.developers)
         self.info_dialog.add_credit_section(_("Contributors:"), [info.contributors_url])
         self.info_dialog.set_translator_credits(_("translator-credits"))
-        img_path = os.path.join(filesystem.image_dir, "rednotebook-icon", "rn-128.png")
-        self.info_dialog.set_logo(GdkPixbuf.Pixbuf.new_from_file(img_path))
+        img_path = filesystem.image_dir / "rednotebook-icon" / "rn-128.png"
+        self.info_dialog.set_logo(GdkPixbuf.Pixbuf.new_from_file(str(img_path)))
         self.info_dialog.set_license_type(Gtk.License.GPL_2_0)
         self.info_dialog.run()
         self.info_dialog.hide()
