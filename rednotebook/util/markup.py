@@ -108,30 +108,36 @@ CSS = """\
 
 # MathJax
 FORMULAS_SUPPORTED = True
-MATHJAX_FILE = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js"
 
 # Explicitly setting inlineMath: [ ['\\(','\\)'] ] doesn't work.
 # Using defaults:
 #       displayMath: [ ['$$','$$'], ['\[','\]'] ]
 #       inlineMath:  [['\(','\)']]
 MATHJAX_DELIMITERS = ["$$", "\\(", "\\)", r"\\[", "\\]"]
-MATHJAX = """\
-<script type="text/x-mathjax-config">
-  MathJax.Hub.Config({{
-    messageStyle: "none",
-    config: ["MMLorHTML.js"],
-    jax: ["input/TeX","input/MathML","output/HTML-CSS","output/NativeMML"],
-    tex2jax: {{}},
-    extensions: ["tex2jax.js","mml2jax.js","MathMenu.js","MathZoom.js"],
-    TeX: {{
-      extensions: ["AMSmath.js","AMSsymbols.js","noErrors.js","noUndefined.js"]
-    }}
-  }});
+
+# TODO: changeable config, select rendering modes
+# SVG has better quality, consider using it instead
+#
+# original config converted using https://mathjax.github.io/MathJax-demos-web/convert-configuration/convert-configuration.html
+# with tex-mml-chtml.js as renderer
+#
+MATHJAX_FILE = os.path.join(filesystem.files_dir, "MathJax", "es5", "tex-mml-chtml.js")
+MATHJAX_config = """\
+<script>
+window.MathJax = {
+  options: {
+    ignoreHtmlClass: 'tex2jax_ignore',
+    processHtmlClass: 'tex2jax_process'
+  },
+  tex: {
+    packages: ['base', 'ams', 'noerrors', 'noundefined']
+  },
+  loader: {
+    load: ['[tex]/noerrors']
+  }
+};
 </script>
-<script type="text/javascript" src="{MATHJAX_FILE}"></script>
-""".format(
-    **locals()
-)
+"""
 
 
 def convert_categories_to_markup(categories, with_category_title=True):
@@ -256,7 +262,23 @@ def _get_config(target, options):
 
         # MathJax
         if options.pop("add_mathjax"):
-            config["postproc"].append([r"</body>", MATHJAX + "</body>"])
+            # for exporting
+            if ("embedMathJax" in options) and options.pop("embedMathJax"):
+                jaxfile = open(MATHJAX_FILE)
+                jaxcode = jaxfile.readline()
+                jaxfile.close()
+                jaxcode = '<script type="text/javascript">' + jaxcode + "</script>"
+                mathjax = MATHJAX_config + jaxcode
+            else:
+                mathjax = (
+                    MATHJAX_config
+                    + '<script id="MathJax-script" async src="file://{}"></script>'.format(
+                        MATHJAX_FILE
+                    )
+                )
+                print(mathjax)
+
+            config["postproc"].append([r"</body>", mathjax + "</body>"])
 
     elif target == "tex":
         config["encoding"] = "utf8"

@@ -1,0 +1,3 @@
+[submodule "rednotebook/external/MathJax"]
+	path = rednotebook/files/MathJax
+	url = https://github.com/mathjax/MathJax

@@ -484,7 +484,9 @@ class ExportAssistant(Assistant):
 
             markup_string = "".join(markup_strings_for_each_day)
 
-        return self.journal.convert(markup_string, target, options={"toc": 0})
+        return self.journal.convert(
+            markup_string, target, options={"toc": 0, "embedMathJax": True}
+        )
 
     def export(self):
         format = self.exporter.FORMAT
