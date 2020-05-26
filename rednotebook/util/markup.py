@@ -267,8 +267,10 @@ def _get_config(target, options):
                 jaxfile = open(MATHJAX_FILE)
                 jaxcode = jaxfile.readline()
                 jaxfile.close()
-                jaxcode = '<script type="text/javascript">' + jaxcode + "</script>"
-                mathjax = MATHJAX_config + jaxcode
+                jaxcode = '<script id="MathJax-script">' + jaxcode + '</script>'
+                # fixme: loading the config breaks the embedded mathjax script
+                # mathjax = MATHJAX_config + jaxcode
+                mathjax = jaxcode
             else:
                 mathjax = (
                     MATHJAX_config
@@ -276,9 +278,8 @@ def _get_config(target, options):
                         MATHJAX_FILE
                     )
                 )
-                print(mathjax)
 
-            config["postproc"].append([r"</body>", mathjax + "</body>"])
+            config["postproc"].append([r"<body>", "<body>" + mathjax.replace('\\', '\\\\')])
 
     elif target == "tex":
         config["encoding"] = "utf8"
